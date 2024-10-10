@@ -1,0 +1,519 @@
+<!-- index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li>
+                    <button class="dropdown-button">Notes</button>
+                    <ul class="dropdown-menu">
+                        <li><a href="#">Untitled Notes</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <input type="search" id="search-bar" placeholder="Search notes...">
+    </header>
+    <main>
+        <div id="notes-container" class="note-tiles">
+            <!-- Note tiles will be generated dynamically using JavaScript -->
+        </div>
+        <button class="new-note-button">+</button>
+    </main>
+    <div class="new-note-interface">
+        <header>
+            <button class="exit-button">&lt;</button>
+            <input type="text" id="note-title" placeholder="Note title...">
+        </header>
+        <textarea id="note-content" placeholder="Write your note..."></textarea>
+        <label for="photo-input">Add photo:</label>
+        <input type="file" id="photo-input" accept="image/*">
+        <footer>
+            <button class="add-photo-button">Add photo</button>
+            <button class="add-voice-button">Add voice recording</button>
+            <button class="save-button">Save</button>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
+// script.js
+
+// Get the necessary elements
+const noteTiles = document.querySelectorAll('.note-tile');
+const newNoteButton = document.querySelector('.new-note-button');
+const newNoteInterface = document.querySelector('.new-note-interface');
+const exitButton = document.querySelector('.exit-button');
+const searchInput = document.querySelector('#search-bar');
+const noteTitleInput = document.querySelector('#note-title');
+const noteContentInput = document.querySelector('#note-content');
+const addPhotoButton = document.querySelector('.add-photo-button');
+const addVoiceButton = document.querySelector('.add-voice-button');
+const saveButton = document.querySelector('.save-button');
+const photoInput = document.querySelector('#photo-input');
+const notesContainer = document.querySelector('#notes-container');
+
+// Initialize notes array
+let notes = [];
+let audioChunks = [];
+let mediaRecorder;
+
+// Add event listeners
+newNoteButton.addEventListener('click', () => {
+  newNoteInterface.style.display = 'block';
+});
+
+exitButton.addEventListener('click', () => {
+  newNoteInterface.style.display = 'none';
+});
+
+searchInput.addEventListener('input', (e) => {
+  const searchQuery = e.target.value.trim();
+  const filteredNotes = searchNotes(searchQuery);
+  displayFilteredNotes(filteredNotes);
+});
+
+addPhotoButton.addEventListener('click', () => {
+  photoInput.click();
+});
+
+addVoiceButton.addEventListener('click', async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.start();
+
+    mediaRecorder.onstop = () => {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+      const audioURL = URL.createObjectURL(audioBlob);
+      const note = {
+        text: noteContentInput.value,
+        audio: audioURL,
+      };
+      notes.push(note);
+      localStorage.setItem('notes', JSON.stringify(notes));
+      noteContentInput.value = '';
+    };
+
+    mediaRecorder.ondataavailable = (e) => {
+      audioChunks.push(e.data);
+    };
+  } catch (error) {
+    console.error('Error recording audio:', error);
+  }
+});
+
+addVoiceButton.addEventListener('dblclick', () => {
+  mediaRecorder.stop();
+});
+
+saveButton.addEventListener('click', () => {
+  const note = {
+    text: noteContentInput.value,
+  };
+  if (photoInput.files[0]) {
+    const file = photoInput.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      const imageData = reader.result;
+      note.image = imageData;
+      notes.push(note);
+      localStorage.setItem('notes', JSON.stringify(notes));
+      noteContentInput.value = '';
+    };
+    reader.readAsDataURL(file);
+  } else {
+    notes.push(note);
+    localStorage.setItem('notes', JSON.stringify(notes));
+    noteContentInput.value = '';
+  }
+});
+
+// Initialize the notes app
+function init() {
+  loadNotes();
+  displayNotes();
+}
+
+init();
+
+// Add the searchNotes function
+function searchNotes(searchQuery) {
+  const notes = JSON.parse(localStorage.getItem('notes'));
+  if (!notes) return [];
+  const filteredNotes = notes.filter((note) => {
+    const searchRegex = new RegExp(searchQuery, 'i'); // Case-insensitive search
+    return searchRegex.test(note.text);
+  });
+  return filteredNotes;
+}
+
+// Display the filtered notes
+function displayFilteredNotes(filteredNotes) {
+  notesContainer.innerHTML = '';
+  if (filteredNotes.length === 0) {
+    const noNotesElement = document.createElement('p');
+    noNotesElement.textContent = 'No notes found';
+    notesContainer.appendChild(noNotesElement);
+  } else {
+    filteredNotes.forEach((note) => {
+      const noteElement = document.createElement('div');
+      noteElement.textContent = note.text;
+
+      if (note.image) {
+        const imgElement = document.createElement('img');
+        imgElement.src = note.image;
+        noteElement.appendChild(imgElement);
+      }
+
+      if (note.audio) {
+        const audioElement = document.createElement('audio');
+        audioElement.src = note.audio;
+        audioElement.controls = true;
+        noteElement.appendChild(audioElement);
+      }
+
+      notesContainer.appendChild(noteElement);
+    });
+  }
+}
+
+// Load existing notes from storage
+function loadNotes() {
+  const storedNotes = localStorage.getItem('notes');
+  if (storedNotes) {
+    notes = JSON.parse(storedNotes);
+  } else {
+    notes = [];
+  }
+}
+
+// Display the loaded notes
+function displayNotes() {
+    notesContainer.innerHTML = '';
+    if (notes.length === 0) {
+      const noNotesElement = document.createElement('p');
+      noNotesElement.textContent = 'No notes found';
+      notesContainer.appendChild(noNotesElement);
+    } else {
+      notes.forEach((note) => {
+        const noteElement = document.createElement('div');
+        noteElement.textContent = note.text;
+  
+        if (note.image) {
+          const imgElement = document.createElement('img');
+          imgElement.src = note.image;
+          noteElement.appendChild(imgElement);
+        }
+  
+        if (note.audio) {
+          const audioElement = document.createElement('audio');
+          audioElement.src = note.audio;
+          audioElement.controls = true;
+          noteElement.appendChild(audioElement);
+        }
+  
+        notesContainer.appendChild(noteElement);
+      });
+    }
+  }
+
+/* Global Styles */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', sans-serif; 
+  background-color: #f1f1f1;
+  line-height: 1.5; 
+}
+
+header {
+  background-color: #3498db;
+  color: #ffffff;
+  padding: 1em;
+  text-align: center;
+}
+
+/* Dropdown Menu Styles */
+
+.dropdown-button {
+  background-color: #3498db;
+  color: #ffffff;
+  border: none;
+  padding: 1em;
+  font-size: 24px; 
+  cursor: pointer;
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  background-color: #3498db;
+  padding: 1em;
+  border: 1px solid #3498db;
+}
+
+.dropdown-menu li {
+  margin-bottom: 1em;
+}
+
+.dropdown-menu a {
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.dropdown-menu li:hover {
+  background-color: #f1c40f;
+}
+
+/* Search Bar Styles */
+
+#search-bar {
+  width: 100%;
+  padding: 1em;
+  font-size: 22px; 
+  border: 1px solid #3498db;
+}
+
+/* Note Tiles Styles */
+
+.note-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.note-tile {
+  background-color: #ffffff;
+  padding: 1em;
+  margin: 1em;
+  width: 20%;
+  border: 1px solid #3498db;
+  font-size: 18px; 
+}
+
+.note-tile:hover {
+  background-color: #f1c40f;
+}
+
+/* New Note Button Styles */
+
+.new-note-button {
+  position: fixed;
+  bottom: 1em;
+  right: 1em;
+  background-color: #3498db;
+  color: #ffffff;
+  border: none;
+  padding: 1em;
+  font-size: 20px; 
+  cursor: pointer;
+}
+
+/* New Note Interface Styles */
+
+.new-note-interface {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #f1f1f1;
+  padding: 1em;
+}
+
+.new-note-interface header {
+  background-color: #3498db;
+  color: #ffffff;
+  padding: 1em;
+  text-align: center;
+}
+
+#note-title {
+  width: 100%;
+  padding: 1em;
+  font-size: 18px; 
+  border: 1px solid #3498db;
+}
+
+#note-content {
+  width: 100%;
+  height: 50vh;
+  padding: 1em;
+  font-size: 16px; 
+  border: 1px solid #3498db;
+}
+
+.add-photo-button, .add-voice-button, .save-button {
+  background-color: #3498db;
+  color: #ffffff;
+  border: none;
+  padding: 1em;
+  font-size: 1em;
+  cursor: pointer;
+}
+
+.add-photo-button:hover, .add-voice-button:hover, .save-button:hover {
+  background-color: #f1c40f;
+}
+
+.exit-button {
+  position: absolute;
+  top: 1em;
+  left: 1em;
+  background-color: #3498db;
+  color: #ffffff;
+  border: none;
+  padding: 1em;
+  font-size: 1em;
+  cursor: pointer;
+}
+
+.exit-button:hover {
+  background-color: #f1c40f;
+}
+
+.note-tile.category-1 {
+  background-color: #ff69b4; /* pink */
+}
+
+.note-tile.category-2 {
+  background-color: #33cc33; /* green */
+}
+
+.note-tile.category-3 {
+  background-color: #6666ff; /* blue */
+}
+
+/* Add more categories as needed */
+
+.search-result {
+  background-color: #ffff99; /* yellow highlight */
+  border: 1px solid #cccc00;
+}
+
+.upload-button {
+  background-color: #3498db;
+  color: #ffffff;
+  border: none;
+  padding: 1em;
+  font-size: 1em;
+  cursor: pointer;
+}
+
+.upload-button:hover {
+  background-color: #f1c40f;
+}
+
+.preview-area {
+  width: 100%;
+  height: 100px;
+  border: 1px solid #3498db;
+  padding: 1em;
+}
+
+.preview-area img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.share-button {
+  background-color: #3498db;
+  color: #ffffff;
+  border: none;
+  padding: 1em;
+  font-size: 1em;
+  cursor: pointer;
+}
+
+.share-button:hover {
+  background-color: #f1c40f;
+}
+
+.export-import-interface {
+  background-color: #f1f1f1;
+  padding: 1em;
+  border: 1px solid #3498db;
+}
+
+.export-import-interface button {
+  background-color: #3498db;
+  color: #ffffff;
+  border: none;
+  padding: 1em;
+  font-size: 1em;
+  cursor: pointer;
+}
+
+.export-import-interface button:hover {
+  background-color: #f1c40f;
+}
+
+/* Media Queries */
+
+/* Mobile devices (max-width: 768px) */
+@media only screen and (max-width: 768px) {
+  .note-tiles {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .note-tile {
+    width: 100%;
+    margin: 1em;
+  }
+}
+
+/* Tablet devices (min-width: 769px and max-width: 1024px) */
+@media only screen and (min-width: 769px) and (max-width: 1024px) {
+  .note-tiles {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .note-tile {
+    width: 50%;
+    margin: 1em;
+  }
+}
+
+/* Desktop devices (min-width: 1025px) */
+@media only screen and (min-width: 1025px) {
+  .note-tiles {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .note-tile {
+    width: 25%;
+    margin: 1em;
+  }
+}
+
+/* Typography Styles */
+
+.bold {
+  font-weight: 700;
+}
+
+.medium {
+  font-weight: 500;
+}
+
+.regular {
+  font-weight: 400;
+}
